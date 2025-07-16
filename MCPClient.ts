@@ -1,20 +1,19 @@
 import axios, { AxiosInstance } from 'axios';
-import { MCPRequest, MCPResponse, JiraIssue, JiraSearchResult } from '../types/types';
+import { MCPRequest, MCPResponse, JiraIssue, JiraSearchResult, ChatMessage } from '../types/types';
 
 export class MCPClient {
   private baseUrl: string;
-  private apiKey: string;
   private httpClient: AxiosInstance;
 
-  constructor(baseUrl: string, apiKey: string) {
+  constructor(baseUrl: string, apiKey?: string) {
     this.baseUrl = baseUrl;
-    this.apiKey = apiKey;
     
+    // Create HTTP client with proper headers for MCP
     this.httpClient = axios.create({
       timeout: 30000,
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
+        'Accept': 'application/json',
         'User-Agent': 'Jira-AI-Agent/1.0.0'
       }
     });
@@ -30,7 +29,8 @@ export class MCPClient {
     };
 
     try {
-      const response = await this.httpClient.post(`${this.baseUrl}/mcp`, request);
+      // Make request to the full URL (it already includes /mcp)
+      const response = await this.httpClient.post(this.baseUrl, request);
       const mcpResponse: MCPResponse = response.data;
 
       if (mcpResponse.error) {
@@ -40,6 +40,13 @@ export class MCPClient {
       return mcpResponse.result;
     } catch (error) {
       if (error.response) {
+        // Log more details for debugging
+        console.error('MCP Response Error Details:', {
+          status: error.response.status,
+          statusText: error.response.statusText,
+          headers: error.response.headers,
+          data: error.response.data
+        });
         throw new Error(`MCP HTTP Error: ${error.response.status} - ${error.response.statusText}`);
       } else if (error.request) {
         throw new Error('MCP Network Error: No response received');
@@ -49,16 +56,75 @@ export class MCPClient {
     }
   }
 
-  // Test connection to MCP server
+  // Test connection to MCP server with detailed debugging
   async testConnection(): Promise<boolean> {
+    console.log('\n🔍 === MCP CONNECTION DEBUG ===');
+    console.log('Base URL:', this.baseUrl);
+    console.log('Full endpoint:', this.baseUrl);
+    console.log('Request headers:', {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'User-Agent': 'Jira-AI-Agent/1.0.0'
+    });
+    
     try {
-      await this.callMethod('tools/list', {});
+      console.log('Making test request...');
+      
+      // Try a simple capabilities request first
+      const result = await this.callMethod('initialize', {
+        protocolVersion: '2024-11-05',
+        capabilities: {},
+        clientInfo: {
+          name: 'Jira-AI-Agent',
+          version: '1.0.0'
+        }
+      });
+      
+      console.log('✅ SUCCESS! MCP initialized:', result);
+      
+      // Now try tools/list
+      try {
+        const tools = await this.callMethod('tools/list', {});
+        console.log('✅ Available tools:', tools);
+      } catch (toolsError) {
+        console.log('⚠️  Tools list failed, but connection works:', toolsError.message);
+      }
+      
       return true;
     } catch (error) {
-      console.error('MCP connection test failed:', error.message);
+      console.log('❌ FAILED! Error details:');
+      console.log('- Error message:', error.message);
+      console.log('- Error type:', error.constructor.name);
+      
+      // Try alternative approaches
+      console.log('\n🔄 Trying alternative request formats...');
+      
+      // Try without initialize
+      try {
+        console.log('Trying direct tools/list...');
+        const directResult = await this.callMethod('tools/list', {});
+        console.log('✅ Direct tools/list worked:', directResult);
+        return true;
+      } catch (directError) {
+        console.log('❌ Direct tools/list failed:', directError.message);
+      }
+      
+      // Try simple ping/status
+      try {
+        console.log('Trying simple status check...');
+        const statusResult = await this.callMethod('ping', {});
+        console.log('✅ Ping worked:', statusResult);
+        return true;
+      } catch (pingError) {
+        console.log('❌ Ping failed:', pingError.message);
+      }
+      
+      console.log('=================================\n');
       return false;
     }
   }
+
+  // ===== JIRA METHODS VIA MCP =====
 
   // Create Jira issue via MCP
   async createJiraIssue(issue: JiraIssue): Promise<any> {
@@ -143,6 +209,29 @@ export class MCPClient {
       return result || [];
     } catch (error) {
       throw new Error(`Could not fetch priorities: ${error.message}`);
+    }
+  }
+
+  // ===== UTILITY METHODS =====
+
+  // Get list of available tools
+  async getAvailableTools(): Promise<any[]> {
+    try {
+      const result = await this.callMethod('tools/list', {});
+      return result || [];
+    } catch (error) {
+      throw new Error(`Could not fetch available tools: ${error.message}`);
+    }
+  }
+
+  // Test specific tool availability
+  async testTool(toolName: string): Promise<boolean> {
+    try {
+      const tools = await this.getAvailableTools();
+      return tools.some(tool => tool.name?.includes(toolName) || tool.includes(toolName));
+    } catch (error) {
+      console.warn(`Could not test tool ${toolName}:`, error.message);
+      return false;
     }
   }
 }
