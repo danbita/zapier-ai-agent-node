@@ -1,15 +1,20 @@
 import OpenAI from 'openai';
 import { ChatMessage, ConversationState, JiraIssue } from '../types/types';
+import { MCPClient } from './MCPClient';
 
 export class AIAgent {
   private openai: OpenAI;
+  private mcpClient: MCPClient;
   private chatHistory: ChatMessage[] = [];
 
-  constructor(apiKey: string) {
+  constructor(mcpClient: MCPClient) {
+    this.mcpClient = mcpClient;
+    
+    // Initialize OpenAI directly (not via MCP)
     this.openai = new OpenAI({
-      apiKey: apiKey
+      apiKey: process.env.OPENAI_API_KEY
     });
-
+    
     this.initializeSystemPrompt();
   }
 
@@ -49,7 +54,7 @@ If they want to chat about other topics, be helpful and engaging.`;
     });
   }
 
-  // Get AI response from OpenAI
+  // Get AI response via direct OpenAI (not MCP)
   async getResponse(userMessage: string, conversationState?: ConversationState): Promise<string> {
     // Add context about current issue creation state
     let contextualPrompt = userMessage;
@@ -66,6 +71,7 @@ If they want to chat about other topics, be helpful and engaging.`;
     });
 
     try {
+      // Use direct OpenAI API call
       const completion = await this.openai.chat.completions.create({
         model: 'gpt-4o-mini',
         messages: [
@@ -89,7 +95,25 @@ If they want to chat about other topics, be helpful and engaging.`;
       
       return response;
     } catch (error) {
-      throw new Error(`AI Service Error: ${error.message}`);
+      // Fallback to a helpful error message
+      const fallbackResponse = `I'm having trouble connecting to my AI service right now. However, I can still help you with Jira issues! 
+
+You can:
+- Use the guided issue creation (option 1)
+- Search for existing issues (option 2)
+- Tell me what you need help with and I'll guide you manually
+
+What would you like to do?`;
+
+      console.error('AI Service Error:', error.message);
+      
+      // Add fallback to history
+      this.chatHistory.push({
+        role: 'assistant',
+        content: fallbackResponse
+      });
+      
+      return fallbackResponse;
     }
   }
 
@@ -163,5 +187,24 @@ If they want to chat about other topics, be helpful and engaging.`;
   // Add message to history manually
   addToHistory(message: ChatMessage): void {
     this.chatHistory.push(message);
+  }
+
+  // Test AI functionality
+  async testAIConnection(): Promise<boolean> {
+    try {
+      const testResponse = await this.openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'user', content: 'Hello, can you respond with just "AI connection working"?' }
+        ],
+        max_tokens: 50
+      });
+      
+      const response = testResponse.choices[0].message.content || '';
+      return response.toLowerCase().includes('working') || response.toLowerCase().includes('connection');
+    } catch (error) {
+      console.error('AI connection test failed:', error.message);
+      return false;
+    }
   }
 }
