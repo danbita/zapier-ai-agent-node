@@ -1,0 +1,33 @@
+{
+  "name": "zapier-ai-agent-node",
+  "version": "1.0.0",
+  "description": "A CLI AI agent for Jira integration using Zapier MCP",
+  "main": "src/index.ts",
+  "scripts": {
+    "start": "ts-node src/index.ts",
+    "dev": "ts-node src/index.ts", 
+    "build": "tsc",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "jira",
+    "ai",
+    "agent",
+    "cli",
+    "zapier",
+    "mcp"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "ts-node": "^10.9.0",
+    "@types/node": "^20.0.0"
+  },
+  "dependencies": {
+    "terminal-kit": "^3.0.0",
+    "openai": "^4.0.0",
+    "axios": "^1.6.0",
+    "dotenv": "^16.0.0"
+  }
+}
