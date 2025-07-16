@@ -19,7 +19,7 @@ export interface JiraIssue {
     pendingField: string | null;
     awaitingConfirmation: boolean;
   }
-  
+
   export interface MCPRequest {
     jsonrpc: string;
     id: string;
